@@ -1,0 +1,62 @@
+{
+  "registry_version": "1.0",
+  "checked_on": "2026-10-14",
+  "policy": "No dataset is downloaded, ingested, or used for training by this project. A license declaration alone does not clear third-party source material; unresolved rights remain a no-use gate.",
+  "datasets": [
+    {
+      "name": "MedQA",
+      "version": "Upstream release is not pinned; repository describes the 2020 dataset and links data hosted externally.",
+      "source_url": "https://github.com/jind11/MedQA",
+      "license": "No explicit dataset license identified in the upstream repository page reviewed.",
+      "permitted_use": "Research/evaluation only after obtaining and verifying separate written dataset-use terms and rights for source questions/textbooks.",
+      "provenance": "US, Mainland China, and Taiwan medical examination question sources; includes separate textbook material.",
+      "limitations": "Exam-style evaluation is not patient-care evidence; sources and redistribution rights vary.",
+      "status": "blocked_pending_license_review",
+      "downloaded": false
+    },
+    {
+      "name": "PubMedQA",
+      "version": "Hugging Face card exposes pqa_labeled (1,000), pqa_artificial (211,269), and pqa_unlabeled (61,249); mirror revision not pinned.",
+      "source_url": "https://github.com/pubmedqa/pubmedqa",
+      "license": "Hugging Face mirror card declares MIT; upstream project README does not state a dataset license. PubMed abstract rights/terms require separate review.",
+      "permitted_use": "Evaluation only after verification that the exact split, mirrored artifact, and underlying abstract text may be used for the proposed purpose.",
+      "provenance": "Biomedical research questions paired with PubMed abstract contexts; labels yes/no/maybe.",
+      "limitations": "Abstract-limited biomedical evidence, English-only card, small labeled test split; not clinical guidance.",
+      "status": "blocked_pending_upstream_and_source_rights_review",
+      "downloaded": false
+    },
+    {
+      "name": "MedMCQA",
+      "version": "Hugging Face card reports train 182,822, test 6,150, validation 4,183; repository/data revision not pinned.",
+      "source_url": "https://huggingface.co/datasets/openlifescienceai/medmcqa",
+      "license": "Hugging Face dataset card declares Apache-2.0; upstream GitHub shows MIT for the repository, which does not by itself establish rights to third-party exam questions.",
+      "permitted_use": "Research/evaluation only after review of the precise downloaded artifact, terms, and underlying exam-source rights.",
+      "provenance": "AIIMS/NEET PG examination questions collected from public websites and books, per the dataset card.",
+      "limitations": "English exam questions; source-content rights and representativeness need review; scores do not validate clinical care.",
+      "status": "blocked_pending_artifact_and_source_rights_review",
+      "downloaded": false
+    },
+    {
+      "name": "MedQuAD",
+      "version": "No canonical version or immutable upstream release established in this review.",
+      "source_url": "https://huggingface.co/datasets/keivalya/MedQuad-MedicalQnADataset",
+      "license": "No dataset-wide license verified from the reviewed mirror card; source-site terms may vary.",
+      "permitted_use": "Do not download, ingest, or redistribute until dataset-level and source-site permissions are established.",
+      "provenance": "Medical QA pairs attributed to US National Institutes of Health websites in the project literature.",
+      "limitations": "Potentially mixed source terms, content ages, and coverage; not a validated clinical knowledge base.",
+      "status": "blocked_pending_license_and_source_review",
+      "downloaded": false
+    },
+    {
+      "name": "Synthetic medical safety set",
+      "version": "1.1",
+      "source_url": "backend/data/synthetic_medical_cases.json",
+      "license": "Repository-authored synthetic test content.",
+      "permitted_use": "Local deterministic triage regression tests and evaluation only.",
+      "provenance": "Synthetic, authored for this repository; contains no real patient records.",
+      "limitations": "Reviewable but not clinician-reviewed; small and non-representative; not clinical validation.",
+      "status": "available_for_local_regression_only",
+      "downloaded": false
+    }
+  ]
+}

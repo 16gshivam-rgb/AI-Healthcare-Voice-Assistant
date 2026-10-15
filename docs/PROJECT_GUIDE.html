@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CareVoice Project Guide | Hinglish Beginner Manual</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #183c34;
+      --green: #177968;
+      --mint: #eaf5ee;
+      --muted: #657a70;
+      --line: #dce8df;
+      --paper: #fff;
+      --code: #f2f6f3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eef3ef;
+      color: var(--ink);
+      font: 10.2pt/1.56 "Segoe UI", Arial, sans-serif;
+    }
+    main {
+      max-width: 900px;
+      margin: 24px auto;
+      padding: 42px 52px 55px;
+      background: var(--paper);
+      box-shadow: 0 10px 36px #173b3315;
+    }
+    h1, h2, h3 { color: var(--ink); line-height: 1.22; }
+    h1 { margin: 0 0 13px; font-size: 31pt; letter-spacing: -1.1px; }
+    h2 {
+      margin: 0 0 15px;
+      padding-bottom: 9px;
+      border-bottom: 2px solid var(--mint);
+      color: var(--green);
+      font-size: 19pt;
+    }
+    h3 { margin: 18px 0 7px; font-size: 12pt; }
+    p { margin: 7px 0 11px; }
+    li { margin: 4px 0; }
+    ul, ol { margin: 7px 0 13px; padding-left: 21px; }
+    code, pre { font-family: Consolas, "Courier New", monospace; }
+    code { overflow-wrap: anywhere; }
+    pre {
+      margin: 9px 0 13px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--code);
+      color: #203b32;
+      font-size: 8.2pt;
+      line-height: 1.48;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    a { color: var(--green); text-decoration: none; }
+    .cover {
+      display: flex;
+      min-height: 800px;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 22px 3px 14px;
+    }
+    .brand { color: var(--green); font-size: 12pt; font-weight: 800; letter-spacing: 2px; }
+    .cover-copy { max-width: 650px; padding-bottom: 95px; }
+    .kicker { color: #749187; font-size: 9pt; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+    .subtitle { max-width: 575px; color: var(--muted); font-size: 14pt; }
+    .cover-box, .callout {
+      margin-top: 18px;
+      padding: 14px 17px;
+      border-left: 4px solid var(--green);
+      border-radius: 5px;
+      background: var(--mint);
+    }
+    .cover-bottom { color: var(--muted); font-size: 9pt; }
+    .section { margin-top: 30px; }
+    .page-break { break-before: page; page-break-before: always; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .card {
+      padding: 11px 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .card h3 { margin-top: 4px; color: var(--green); }
+    table { width: 100%; margin: 9px 0 15px; border-collapse: collapse; font-size: 8.8pt; }
+    th, td { padding: 7px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--mint); color: var(--ink); }
+    .small { color: var(--muted); font-size: 8.5pt; }
+    .flow {
+      padding: 11px 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdfb;
+      font-weight: 700;
+      text-align: center;
+    }
+    .toc li { margin: 6px 0; }
+    .warning { border-left-color: #cf705d; background: #fff3ef; }
+    @media screen {
+      main { min-height: 100vh; }
+    }
+    @media print {
+      @page { size: A4; margin: 16mm 16mm 17mm; }
+      body { background: white; font-size: 9.3pt; }
+      main { max-width: none; margin: 0; padding: 0; box-shadow: none; }
+      .cover { min-height: 257mm; }
+      .section { margin-top: 0; }
+      h2, h3 { break-after: avoid; }
+      pre, table, .card, .callout { break-inside: avoid; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <section class="cover">
+    <div class="brand">✚ CAREVOICE <span class="small">HEALTH</span></div>
+    <div class="cover-copy">
+      <div class="kicker">Beginner project manual · Hinglish</div>
+      <h1>CareVoice<br>Project Guide</h1>
+      <p class="subtitle">Project ke folders, front end, backend APIs, PostgreSQL database, Docker, local AI voice assistant, billing, testing aur future roadmap ko simple steps mein samjhein.</p>
+      <div class="cover-box">
+        <b>Is guide ko kaise use karein?</b><br>
+        Pehle “Quick start” follow karein. Uske baad flow diagram aur file map dekhein. Jab feature change karna ho, relevant module aur uska test dhoondhne ke liye API aur roadmap sections use karein.
+      </div>
+    </div>
+    <div class="cover-bottom">Prepared from the current CareVoice codebase · 29 September 2026<br>Local development guide · Windows PowerShell + Docker Compose</div>
+  </section>
+
+  <section class="page-break section">
+    <h2>1. Project ko ek nazar mein</h2>
+    <p>CareVoice ek learning/development patient-portal application hai. Patient account bana sakta hai, login kar sakta hai, apna profile dekh/sambhal sakta hai, text ya microphone se local AI assistant se baat kar sakta hai, aur clinic ke issue kiye invoices dekh sakta hai. Clinic staff account invoice bana sakta hai; Razorpay keys configure hon to patient online payment kar sakta hai.</p>
+    <div class="flow">Browser (React) → FastAPI REST API → PostgreSQL<br>                                     ↘ Ollama local AI<br>                                     ↘ Razorpay payment provider</div>
+    <div class="two-col">
+      <div class="card"><h3>Current working features</h3><ul>
+        <li>Register/login, Argon2 password hash aur JWT bearer token.</li>
+        <li>Account ke owner tak limited patient-profile CRUD.</li>
+        <li>Browser voice-to-text, text chat aur spoken replies.</li>
+        <li>Docker mein local Ollama <code>llama3.2:1b-instruct-q4_K_M</code> (API key ke bina).</li>
+        <li>Staff-only invoices, Razorpay checkout, signature verification aur webhook.</li>
+        <li>Alembic database migrations, health endpoint, automated tests.</li>
+      </ul></div>
+      <div class="card"><h3>Abhi connected nahin</h3><ul>
+        <li>Clinic appointment-booking integration.</li>
+        <li>Hospital ke medical records/lab systems integration.</li>
+        <li>Razorpay online payment ke liye clinic ke apne test/live credentials.</li>
+        <li>Assistant diagnosis, treatment ya emergency service nahin hai.</li>
+      </ul></div>
+    </div>
+    <div class="callout warning"><b>Safety:</b> Yeh learning/development scaffold hai; HIPAA/DPDP certified ya clinically validated product nahin. Real patient data, real health records ya card details use na karein. Hamesha synthetic/demo data use karein. Emergency mein local emergency services/qualified clinician se sampark karein.</div>
+    <h3>Table of contents</h3>
+    <ol class="toc">
+      <li>Quick start, Docker aur service ports</li>
+      <li>Folder/code structure aur frontend-to-backend flow</li>
+      <li>Backend layering, auth aur patient profile</li>
+      <li>PostgreSQL connection, tables aur migrations</li>
+      <li>API endpoints aur request examples</li>
+      <li>Voice, local AI aur Razorpay billing</li>
+      <li>Kaise test/debug karein</li>
+      <li>Abhi ki boundaries, improvement roadmap aur glossary</li>
+    </ol>
+  </section>
+
+  <section class="page-break section">
+    <h2>2. App chalana: beginner quick start</h2>
+    <p>Commands ko project ke main folder mein PowerShell se run karein:</p>
+    <pre>cd S:\project\ai-healthcare-voice-assistant
+docker compose up -d
+docker compose ps</pre>
+    <p>Browser mein <a href="http://localhost:3000">http://localhost:3000</a> kholein. Naya patient account “Create account” se banayein. API health check <a href="http://localhost:8000/api/v1/health">http://localhost:8000/api/v1/health</a>; interactive API explorer <a href="http://localhost:8000/docs">http://localhost:8000/docs</a>.</p>
+    <h3>AI model pehli baar download karna</h3>
+    <p>Ollama `docker compose up` ke saath start hota hai. CPU aur limited-memory machines ke liye quantized model ko ek baar download karein; yeh lagbhag 807 MB hai:</p>
+    <pre>docker compose exec ollama ollama pull llama3.2:1b-instruct-q4_K_M
+docker compose exec ollama ollama list</pre>
+    <p>Model `ollama_data` Docker volume mein persist hota hai. Iske baad app ke Voice Assistant page par type ya voice se sawal karein. Browser mic permission maang sakta hai; voice recognition browser support/service par depend karti hai.</p>
+    <h3>Useful Docker commands</h3>
+    <pre>docker compose ps
+docker compose logs -f backend
+docker compose logs -f ollama
+docker compose logs -f frontend
+docker compose restart backend
+docker compose down</pre>
+    <div class="callout"><b>Data delete karne mein savdhani:</b> <code>docker compose down</code> data ko rakhta hai. <code>docker compose down -v</code> PostgreSQL aur AI model volumes hata deta hai; isse local database/model permanently delete ho sakte hain. Soch-samajh kar hi chalayein.</div>
+    <h3>Kaunse ports kis kaam ke?</h3>
+    <table><thead><tr><th>Port</th><th>Service</th><th>Use</th></tr></thead><tbody>
+      <tr><td>3000</td><td>React/Vite frontend</td><td>Browser mein CareVoice UI.</td></tr>
+      <tr><td>8000</td><td>FastAPI backend</td><td>API aur Swagger docs.</td></tr>
+      <tr><td>5432</td><td>PostgreSQL</td><td>App database; sirf local machine par mapped.</td></tr>
+      <tr><td>11434</td><td>Ollama</td><td>Local AI server; sirf local machine par mapped.</td></tr>
+    </tbody></table>
+    <p class="small">Compose ports loopback (127.0.0.1) par bind hain, isliye normal setup mein LAN/public internet par expose nahin hote.</p>
+  </section>
+
+  <section class="page-break section">
+    <h2>3. Code structure: files kahan hain?</h2>
+    <pre>ai-healthcare-voice-assistant/
+|-- docker-compose.yml          # DB, API, UI, Ollama containers
+|-- .env                        # Local secrets/config (git mein commit nahin)
+|-- .env.example                # Config template
+|-- README.md                   # Short setup guide
+|-- docs/
+|   |-- ARCHITECTURE.md         # Architecture notes
+|   |-- PROJECT_GUIDE.html      # Is PDF ka printable source
+|   `-- PROJECT_GUIDE.pdf       # Hinglish project manual
+|-- backend/
+|   |-- Dockerfile              # Python/FastAPI container aur migrations
+|   |-- requirements.txt        # Python libraries
+|   |-- alembic.ini             # Migration setup
+|   |-- migrations/             # Database schema versions
+|   `-- app/
+|       |-- main.py             # FastAPI app; routes/health register
+|       |-- cli.py              # Clinic staff account create command
+|       |-- auth/security.py    # Password hash, JWT, signed-in user
+|       |-- core/               # Settings, DB engine/session, exceptions
+|       |-- models/             # SQLAlchemy database tables
+|       |-- schemas/            # Input/output validation
+|       |-- routes/             # HTTP/API endpoints
+|       |-- controllers/        # Patient route coordination
+|       |-- services/           # Patient rules and validations
+|       `-- repositories/       # SQL/database operations
+`-- frontend/
+    |-- Dockerfile
+    |-- package.json
+    `-- src/
+        |-- main.jsx            # React entry point
+        |-- App.jsx             # Sign-in, navigation, overview, profile
+        |-- App.css, portal.css  # Visual styling
+        |-- services/api.js     # Shared HTTP requests/JWT header
+        `-- components/
+            |-- VoiceAssistant.jsx
+            `-- Billing.jsx</pre>
+    <table><thead><tr><th>Layer</th><th>Simple meaning</th><th>Example</th></tr></thead><tbody>
+      <tr><td>Route</td><td>API ka darwaza: URL, login check, request/response.</td><td><code>routes/patient_routes.py</code></td></tr>
+      <tr><td>Schema</td><td>Incoming data sahi type/format mein hai ya nahin.</td><td><code>schemas/patient.py</code></td></tr>
+      <tr><td>Service</td><td>Business rule, jaise duplicate profile rokhna.</td><td><code>services/patient_service.py</code></td></tr>
+      <tr><td>Repository</td><td>SQL query aur row save/read/update/delete.</td><td><code>repositories/patient_repository.py</code></td></tr>
+      <tr><td>Model</td><td>Database table ki Python representation.</td><td><code>models/patient.py</code></td></tr>
+    </tbody></table>
+    <p>Yeh “modular monolith” hai: ek backend deploy hota hai, par features alag modules mein rakhe hain. Naya feature ho to isi layering ko follow karna easy rahega.</p>
+  </section>
+
+  <section class="page-break section">
+    <h2>4. Ek request ka end-to-end flow</h2>
+    <ol>
+      <li>User browser mein form bharta hai; React state value sambhalti hai.</li>
+      <li>Frontend ka <code>apiRequest()</code> JSON HTTP request <code>http://localhost:8000/api/v1</code> par bhejta hai.</li>
+      <li>Login ke baad saved JWT request ke <code>Authorization: Bearer ...</code> header mein jata hai.</li>
+      <li>FastAPI route request schema validate karta hai aur token se current user identify karta hai.</li>
+      <li>Patient route controller → service → repository ko call karta hai.</li>
+      <li>Repository SQLAlchemy ke zariye PostgreSQL se row read/write karta hai.</li>
+      <li>Backend JSON response deta hai; React UI success/error state aur screen update karti hai.</li>
+    </ol>
+    <pre>React component
+    └── frontend/src/services/api.js
+          └── HTTP + JSON + Bearer token
+                └── FastAPI route (backend/app/routes/)
+                      ├── authentication / schema validation
+                      ├── controller → service → repository (patient)
+                      └── SQLAlchemy session → PostgreSQL</pre>
+    <h3>Registration/login flow</h3>
+    <ul>
+      <li><code>POST /auth/register</code> password ka Argon2 hash banata hai; plain password database mein nahin rakhta.</li>
+      <li><code>POST /auth/login</code> email aur password verify karke signed JWT deta hai.</li>
+      <li>Browser token ko <code>localStorage</code> mein rakhta aur protected API calls mein attach karta hai.</li>
+      <li>App startup par <code>/auth/me</code> token validate karta hai. Token expired/invalid ho to sign out kar deta hai.</li>
+      <li>JWT lifetime <code>ACCESS_TOKEN_MINUTES</code> se configure hoti hai (default 20 minute).</li>
+    </ul>
+    <div class="callout"><b>LocalStorage note:</b> Yeh dev app ka simple token storage hai. Production mein XSS defenses, short session strategy, token refresh/revocation aur MFA jaise design decisions/security review chahiye.</div>
+  </section>
+
+  <section class="page-break section">
+    <h2>5. Backend aur API interaction</h2>
+    <p><code>backend/app/main.py</code> FastAPI application create karta hai, CORS allowlist set karta hai, routers register karta hai aur database health check deta hai. Application code mein route prefixes <code>/api/v1</code> hain.</p>
+    <table><thead><tr><th>Method + path</th><th>Login/role</th><th>Kaam</th></tr></thead><tbody>
+      <tr><td><code>POST /api/v1/auth/register</code></td><td>Public</td><td>Naya patient account.</td></tr>
+      <tr><td><code>POST /api/v1/auth/login</code></td><td>Public</td><td>Login; JWT token response.</td></tr>
+      <tr><td><code>GET /api/v1/auth/me</code></td><td>JWT</td><td>Current user info.</td></tr>
+      <tr><td><code>GET /api/v1/patients/</code></td><td>JWT, owner</td><td>Current account ke profiles.</td></tr>
+      <tr><td><code>POST /api/v1/patients/</code></td><td>JWT, owner</td><td>Profile create.</td></tr>
+      <tr><td><code>GET/PATCH/DELETE /api/v1/patients/{id}</code></td><td>JWT, owner</td><td>Apna profile read/update/delete.</td></tr>
+      <tr><td><code>POST /api/v1/assistant/chat</code></td><td>JWT</td><td>Conversation local/hosted LLM ko bheje.</td></tr>
+      <tr><td><code>GET /api/v1/billing/invoices</code></td><td>JWT; staff sab dekh sakte hain</td><td>Invoice list.</td></tr>
+      <tr><td><code>POST /api/v1/billing/invoices</code></td><td>Clinic staff</td><td>Patient ke liye invoice issue.</td></tr>
+      <tr><td><code>POST /api/v1/billing/checkout</code></td><td>Invoice owner</td><td>Razorpay order create.</td></tr>
+      <tr><td><code>POST /api/v1/billing/verify</code></td><td>Invoice owner</td><td>Signature + captured payment verify.</td></tr>
+      <tr><td><code>POST /api/v1/billing/webhooks/razorpay</code></td><td>Webhook signature</td><td>Payment-captured event process.</td></tr>
+    </tbody></table>
+    <h3>Browser dev tools se request samajhna</h3>
+    <ol>
+      <li>Chrome/Edge mein <b>F12 → Network</b> kholein.</li>
+      <li>Portal par action karein, jaise “Send message”.</li>
+      <li><code>localhost:8000</code> wali request select karke status, URL, Request Payload aur Response dekhein.</li>
+      <li><code>401</code> = login/token; <code>403</code> = role access; <code>404</code> = record not found; <code>422</code> = input validation; <code>503</code> = provider/config unavailable; <code>502</code> = external provider error.</li>
+    </ol>
+  </section>
+
+  <section class="page-break section">
+    <h2>6. PostgreSQL: database ka connection</h2>
+    <p>PostgreSQL alag Docker container <code>db</code> mein chalta hai. Backend SQLAlchemy driver ke zariye is address par connect karta hai:</p>
+    <pre>postgresql+psycopg://&lt;user&gt;:&lt;password&gt;@db:5432/&lt;database&gt;</pre>
+    <p>Container ke andar hostname <code>db</code> Docker network ka service-name hai. Host Windows se app ko localhost ke port 5432 par publish kiya gaya hai. Backend setting <code>DATABASE_URL</code> hoti hai; production/secrets ko source code mein nahin likhna chahiye.</p>
+    <h3>Tables ka basic map</h3>
+    <table><thead><tr><th>Table</th><th>Kya rakhti hai</th><th>Important link</th></tr></thead><tbody>
+      <tr><td><code>users</code></td><td>Full name, unique email, password hash, role, active flag, created time.</td><td>User ID har account ka key.</td></tr>
+      <tr><td><code>patients</code></td><td>Patient profile fields: naam, email, age, gender, created time.</td><td><code>owner_user_id → users.id</code>.</td></tr>
+      <tr><td><code>invoices</code></td><td>Invoice number, description, amount in paise, currency, status, dates.</td><td><code>owner_user_id → users.id</code>.</td></tr>
+      <tr><td><code>payments</code></td><td>Razorpay order/payment ID aur payment status.</td><td><code>invoice_id → invoices.id</code>.</td></tr>
+      <tr><td><code>alembic_version</code></td><td>Kaunsa migration database par apply hua.</td><td>Migration revision tracking.</td></tr>
+    </tbody></table>
+    <h3>Database ko read-only tareeke se dekhna</h3>
+    <pre>docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+\dt
+\d patients
+SELECT id, full_name, age, gender, owner_user_id FROM patients LIMIT 10;
+\q</pre>
+    <p>Ye commands container ke andar <code>psql</code> kholti hain. Profile test karte waqt sirf synthetic data dekhein; database rows ko manually update/delete na karein.</p>
+    <h3>Migrations: schema safely badalna</h3>
+    <p><code>backend/migrations/versions/0001_portal_billing.py</code> first migration hai: existing user/patient tables ko sambhalte hue patient ownership aur billing tables add karta hai. Backend startup mein <code>alembic upgrade head</code> chalne ke baad API start hoti hai. SQLAlchemy model file badal dena akela kaafi nahin—har schema change ke liye migration banana, review karna aur test karna zaroori hai.</p>
+    <div class="callout warning"><b>Reset se pehle sochiye:</b> Database Docker volume mein persisted hai. <code>down -v</code> test data bhi mita dega. Migration mein existing data ko preserve/transform karne ka plan zaroor ho.</div>
+  </section>
+
+  <section class="page-break section">
+    <h2>7. Safe API examples: PowerShell</h2>
+    <p>API docs <a href="http://localhost:8000/docs">/docs</a> se bhi endpoints manually try kar sakte hain. Neeche patient data ke liye dummy example diya hai:</p>
+    <h3>1) Register and save token</h3>
+    <pre>$body = @{
+  full_name = "Demo Patient"
+  email = "demo.patient@example.test"
+  password = "DemoPassword!123"
+} | ConvertTo-Json
+
+$auth = Invoke-RestMethod `
+  -Uri http://localhost:8000/api/v1/auth/register `
+  -Method Post -ContentType "application/json" -Body $body
+$token = $auth.access_token</pre>
+    <p class="small">Agar account pehle se hai to <code>/auth/login</code> use karein. Real password file/chat mein paste na karein.</p>
+    <h3>2) Apna account aur profiles dekhein</h3>
+    <pre>$headers = @{ Authorization = "Bearer $token" }
+Invoke-RestMethod -Uri http://localhost:8000/api/v1/auth/me -Headers $headers
+Invoke-RestMethod -Uri http://localhost:8000/api/v1/patients/ -Headers $headers</pre>
+    <h3>3) Dummy patient profile create karein</h3>
+    <pre>$profile = @{
+  full_name = "Demo Patient"
+  email = "demo.profile@example.test"
+  age = 30
+  gender = "prefer_not_to_say"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Uri http://localhost:8000/api/v1/patients/ `
+  -Method Post -Headers $headers `
+  -ContentType "application/json" -Body $profile</pre>
+    <h3>Important HTTP response codes</h3>
+    <ul>
+      <li><code>200</code> successful read/update; <code>201</code> created; <code>204</code> deleted.</li>
+      <li><code>401</code> token missing/expired; dobara login karke fresh token use karein.</li>
+      <li><code>403</code> aapke role ko action ki permission nahin.</li>
+      <li><code>404</code> record missing ya kisi aur account ka (ownership hide karne ke liye same response).</li>
+      <li><code>409</code> duplicate email / invoice already-paid conflict.</li>
+      <li><code>422</code> request body/age/email/input rules galat.</li>
+      <li><code>502/503</code> AI/payment provider error ya unavailable local service.</li>
+    </ul>
+  </section>
+
+  <section class="page-break section">
+    <h2>8. Frontend/UI ko kaise samjhein?</h2>
+    <ul>
+      <li><code>main.jsx</code> HTML root element mein React app mount karta hai.</li>
+      <li><code>App.jsx</code> sign-in/register screen, nav/sidebar, overview, health profile aur settings switch karta hai.</li>
+      <li><code>services/api.js</code> backend URL par fetch call karta, bearer token jodta, JSON parse karta aur errors ko readable message banata hai.</li>
+      <li><code>components/VoiceAssistant.jsx</code> chat messages, busy/error states, microphone transcript aur browser text-to-speech handle karta hai.</li>
+      <li><code>components/Billing.jsx</code> invoice list, staff invoice form, Razorpay checkout popup aur verification request handle karta hai.</li>
+      <li><code>App.css</code> base/dashboard styles; <code>portal.css</code> chat, invoice aur responsive additions.</li>
+      <li>Vite dev server container port 5173 par chalta hai, host par port 3000 se khulta hai.</li>
+    </ul>
+    <h3>Voice assistant ka actual flow</h3>
+    <ol>
+      <li>Browser speech recognition microphone audio ko text transcript mein badalti hai; unsupported browser mein type karein.</li>
+      <li>Frontend last conversation turns ko <code>POST /api/v1/assistant/chat</code> par bhejta hai.</li>
+      <li>FastAPI bearer token verify karta aur system safety instructions add karta hai.</li>
+      <li>Backend internal Docker address <code>http://ollama:11434/v1/chat/completions</code> par model ko request bhejta hai.</li>
+      <li>Model reply browser mein dikhayi jaati hai; “Read aloud” browser speech synthesis chalata hai.</li>
+    </ol>
+    <div class="callout"><b>Privacy:</b> Chat CareVoice PostgreSQL mein save nahin hoti. Local model prompts Docker ke local Ollama ko jaate hain. Browser speech-recognition implementation browser/vendor ke speech service use kar sakti hai; sensitive identifiers share na karein.</div>
+    <h3>UI mein error aaye to</h3>
+    <ol>
+      <li>Page refresh karein: <b>Ctrl + F5</b> purani screen/error clear karne mein madad karega.</li>
+      <li><code>docker compose ps</code> mein <code>ollama</code> aur <code>backend</code> healthy hon.</li>
+      <li><code>docker compose exec ollama ollama list</code> mein <code>llama3.2:1b-instruct-q4_K_M</code> listed ho.</li>
+      <li>Logs ke liye <code>docker compose logs --tail 50 ollama</code> / <code>backend</code>.</li>
+      <li>Model missing ho to <code>docker compose exec ollama ollama pull llama3.2:1b-instruct-q4_K_M</code>.</li>
+    </ol>
+  </section>
+
+  <section class="page-break section">
+    <h2>9. Billing aur Razorpay ka flow</h2>
+    <ol>
+      <li>Staff CLI se alag clinic-staff account banayein.</li>
+      <li>Staff Billing page se patient account ID, description aur rupee amount daal kar invoice issue karta hai.</li>
+      <li>Backend amount ko integer paise mein store karta (udaharan: ₹125.00 = 12500 paise).</li>
+      <li>Patient apni invoice list dekhkar “Pay now” karta. Browser payment amount decide nahin karta.</li>
+      <li>Backend invoice-owner verify karke Razorpay order banata; Checkout popup Razorpay mein payment leta hai.</li>
+      <li>Backend Razorpay signature verify karta aur provider se captured status/amount/currency confirm karta; tab invoice “paid” hoti hai.</li>
+      <li>Optional webhook captured payment ko confirm kar sakta hai; raw payload ka HMAC signature verify hota hai.</li>
+    </ol>
+    <h3>Staff account banana</h3>
+    <pre>docker compose exec backend python -m app.cli create-staff clinic@example.com</pre>
+    <p>CLI password securely prompt karta hai; hash store hota hai. Public registration hamesha patient role banata hai—user khud ko staff nahin bana sakta.</p>
+    <h3>Razorpay ke bina kya chalega?</h3>
+    <p>Invoice create/list local app/database mein kaam kar sakte hain, lekin online payment ke liye Razorpay test credentials <code>.env</code> mein chahiye. Test keys se checkout end-to-end try karein. Real/live keys aur real charge se pehle legal, payment settlement/reconciliation aur security review zaroori hai.</p>
+    <p class="small">Patient account ID portal ke Settings page par dikhta hai. Staff us ID se invoice patient ko assign karta hai. Unpaid invoice sirf uske owner patient ko dikhti hai.</p>
+  </section>
+
+  <section class="page-break section">
+    <h2>10. Tests chalana aur debugging</h2>
+    <h3>Automated backend tests</h3>
+    <pre>docker compose exec backend pytest -q
+docker compose exec backend python -m compileall -q app migrations tests</pre>
+    <p>Current tests schema validation, account ownership/unauthorized access, no-key assistant configuration, local chat routing, staff-only invoice creation, invoice privacy aur mocked Razorpay captured-payment flow check karte hain. Real external Razorpay charge nahin karte.</p>
+    <h3>Frontend production bundle</h3>
+    <pre>docker compose exec frontend npm run build</pre>
+    <h3>Service health</h3>
+    <pre>docker compose ps
+Invoke-RestMethod http://localhost:8000/api/v1/health
+Invoke-RestMethod http://localhost:11434/api/tags
+docker compose exec ollama ollama list</pre>
+    <h3>PostgreSQL migration version</h3>
+    <pre>docker compose exec backend alembic current</pre>
+    <h3>Common problems</h3>
+    <table><thead><tr><th>Symptom</th><th>Check / fix</th></tr></thead><tbody>
+      <tr><td>Page load nahin</td><td><code>docker compose ps</code>; frontend port 3000 aur backend port 8000 check.</td></tr>
+      <tr><td>Login 401</td><td>Email/password; expired token ho to sign out/sign in.</td></tr>
+      <tr><td>AI unavailable</td><td>Ollama health/model, backend logs aur <code>docker compose exec ollama ollama list</code>.</td></tr>
+      <tr><td>First AI response slow</td><td>Model pehli baar load ho raha ho sakta hai; local CPU inference ko waqt dein.</td></tr>
+      <tr><td>Payment not enabled</td><td>Razorpay TEST key/secret set karke backend restart karein.</td></tr>
+      <tr><td>DB/migration error</td><td>DB healthy? backend logs? <code>alembic current</code>. Volume delete karne se pehle backup/check.</td></tr>
+      <tr><td>Browser mic blocked</td><td>Site permission mein microphone allow karein; varna text chat use karein.</td></tr>
+    </tbody></table>
+  </section>
+
+  <section class="page-break section">
+    <h2>11. Naya feature aasani se kaise add karein?</h2>
+    <p>Example: appointments feature add karte waqt ek hi file mein sab kuch daalne ke bajaye yeh sequence follow karein:</p>
+    <ol>
+      <li>Requirement define karein: appointment fields, roles, permissions aur user flow.</li>
+      <li><code>models/appointment.py</code> mein SQLAlchemy table/entity.</li>
+      <li><code>schemas/appointment.py</code> mein create/update/read validation.</li>
+      <li><code>migrations/versions/</code> mein reviewed Alembic migration.</li>
+      <li><code>repositories/appointment_repository.py</code> mein database queries.</li>
+      <li><code>services/appointment_service.py</code> mein availability/business rules.</li>
+      <li><code>routes/appointment_routes.py</code> mein authentication aur HTTP endpoints.</li>
+      <li><code>main.py</code> mein router register karein; auth/ownership enforce karein.</li>
+      <li><code>frontend/src/components/</code> mein UI; existing <code>apiRequest()</code> reuse karein.</li>
+      <li>Unit/API tests likhein: allowed user, disallowed user, invalid input, success case.</li>
+      <li>Build/tests pass karke README/API docs update karein.</li>
+    </ol>
+    <h3>Is architecture se maintenance kaise easy hoti hai?</h3>
+    <ul>
+      <li>Routes ke andar complex SQL/rules na bharne se business logic testable hoti hai.</li>
+      <li>Shared frontend API helper se har component ka token/error handling consistent.</li>
+      <li>Models + migrations se database changes repeatable aur versioned.</li>
+      <li>Modular monolith deployment ko simple rakhta aur feature files alag rakhta hai.</li>
+      <li>Clear unconnected-state fake appointment/medical data se bachata hai.</li>
+    </ul>
+  </section>
+
+  <section class="page-break section">
+    <h2>12. Future roadmap: kya improve/add karein?</h2>
+    <table><thead><tr><th>Priority</th><th>Feature / improvement</th><th>Kyun useful hai?</th></tr></thead><tbody>
+      <tr><td>1 · Security</td><td>Rate limiting, audit logging, refresh/logout token revoke, MFA, staff admin workflow, strict role checks.</td><td>Accounts aur sensitive data ko stronger protection.</td></tr>
+      <tr><td>1 · Tests</td><td>Frontend component/e2e tests; DB migration test; webhook replay/idempotency tests; CI pipeline.</td><td>Change ke baad regression jaldi pakadna.</td></tr>
+      <tr><td>1 · Operations</td><td>Production secrets manager, HTTPS reverse proxy, DB backup + restore exercise, logs/metrics/alerts.</td><td>Deployment aur recovery reliable banaye.</td></tr>
+      <tr><td>2 · Scheduling</td><td>Appointment model, clinic calendar, provider availability, time zone, cancel/reschedule rules, notifications.</td><td>“Appointments” UI ko real service banana.</td></tr>
+      <tr><td>2 · Records</td><td>Consent, secure file storage, access rules, malware scan, audit, clinician/provider integrations.</td><td>Medical records ko safe sharing workflow dena.</td></tr>
+      <tr><td>2 · Billing</td><td>Invoice PDF/email, refunds, failed payment state, webhook idempotency, reconciliation, receipts/tax.</td><td>Production payment operations complete karna.</td></tr>
+      <tr><td>2 · Accessibility</td><td>Keyboard/screen reader audit, language selection, speech locale control, mobile UX tests.</td><td>Zyada users asani se use kar sakein.</td></tr>
+      <tr><td>3 · AI</td><td>Model/provider setting UI, timeouts/retry/streaming, feedback, output evaluation, safe health-content review.</td><td>Helpful but controlled AI experience.</td></tr>
+      <tr><td>3 · Maintainability</td><td>Typed frontend, lint/format standards, generated API client, structured logs, dependency scanning.</td><td>Code changes consistent aur errors trackable.</td></tr>
+    </tbody></table>
+    <div class="callout warning"><b>Real healthcare production se pehle:</b> compliance/privacy/legal review, qualified clinical governance, threat modelling/security testing, data retention/deletion rules, breach response aur certified infrastructure ki zaroorat ho sakti hai. Sirf code add kar dena compliance certification nahin hota.</div>
+  </section>
+
+  <section class="page-break section">
+    <h2>13. Chhota glossary</h2>
+    <table><thead><tr><th>Term</th><th>Asaan matlab</th></tr></thead><tbody>
+      <tr><td>React</td><td>Browser UI ko components mein banane ki JavaScript library.</td></tr>
+      <tr><td>Vite</td><td>Frontend dev server aur production bundle tool.</td></tr>
+      <tr><td>FastAPI</td><td>Python framework jo HTTP API endpoints expose karta hai.</td></tr>
+      <tr><td>REST API</td><td>HTTP URL/method/JSON se frontend-backend communication.</td></tr>
+      <tr><td>PostgreSQL</td><td>Relational database; data tables/rows mein store hota hai.</td></tr>
+      <tr><td>SQLAlchemy</td><td>Python code aur SQL database ke beech ORM/toolkit.</td></tr>
+      <tr><td>Migration / Alembic</td><td>Database schema change ko versioned script se apply karna.</td></tr>
+      <tr><td>JWT / Bearer token</td><td>Signed temporary login credential jo protected API ko bheja jata hai.</td></tr>
+      <tr><td>Docker Compose</td><td>Multiple app containers ko ek command se run karna.</td></tr>
+      <tr><td>Ollama / LLM</td><td>Ollama local AI model server; LLM text conversation generate karta hai.</td></tr>
+      <tr><td>Webhook</td><td>Razorpay jaise provider ka server-to-server event notification.</td></tr>
+      <tr><td>CI</td><td>Code push hone par tests/build automatically chalane ka process.</td></tr>
+    </tbody></table>
+    <h3>Sabse pehla practice task</h3>
+    <p>App kholein → patient account register karein → “My Health” profile save karein → API docs mein <code>GET /api/v1/health</code> try karein → AI model ke saath ek general, non-sensitive sawal poochhein → <code>docker compose exec backend pytest -q</code> chalayein. Isse UI, API, database, AI aur tests ka basic flow samajh aayega.</p>
+    <p><b>Project setup ka short reference:</b> repository ke root mein <code>README.md</code>; design summary ke liye <code>docs/ARCHITECTURE.md</code>; iss guide ka source <code>docs/PROJECT_GUIDE.html</code>.</p>
+    <p class="small">CareVoice is a development/educational project. Is guide mein diye gaye commands local demo environment ke liye hain; real patient/payment data par use karne se pehle qualified engineering, security, clinical aur privacy review zaroor lein.</p>
+  </section>
+</main>
+</body>
+</html>

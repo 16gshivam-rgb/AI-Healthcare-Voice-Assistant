@@ -12,7 +12,7 @@ CareVoice is a Docker Compose development application for a patient portal. It c
 - **Public-health RAG foundation:** Versioned public source records, metadata-constrained ingestion, chunk embeddings, cosine retrieval, and backend-attached source citations. The default offline hash vectors are only a lexical baseline; choose an embedding provider for semantic vectors.
 - **Emergency triage:** A public deterministic triage endpoint checks emergency red flags before chat/model processing, including selected English, Hindi, and Hinglish phrases. Emergency red flags take priority over prompt-injection blocks; self-harm guidance includes India's Tele-MANAS 14416.
 - **Care discovery and appointments:** Paginated, verified-only doctor/hospital directory with persistent qualifications, specialties, languages, consultation types, recurring schedules, verification review, profile pages, and role-scoped dashboards. Appointment slots are generated from published schedules; booking and rescheduling are idempotent and protected by database slot locks. The UI displays appointment dates and times in IST. No ratings or appointment slots are fabricated.
-- **Billing:** Patient-owned invoice/payment access; hospital staff/admin can create and list invoices only for their hospital and an existing care relationship; platform administrators can manage invoices globally. Razorpay order creation, signed checkout verification, and an optional signed webhook.
+- **Billing:** Patient-owned invoice/payment access; hospital staff/admin can issue service invoices or invoice an appointment at the clinician's recorded fee, with duplicate appointment invoices prevented. Explicit demo checkout works without provider credentials; Razorpay remains available in live mode with signed verification and an optional signed webhook.
 - **Responsive bilingual interface:** Landing and authentication screens, patient dashboards, profile management, symptom triage, assistant, care discovery, appointment history, and billing use responsive layouts with English/Hindi labels on supported screens. Voice transcription is configurable between browser recognition, an OpenAI-compatible transcription API, and an operator-hosted AI4Bharat IndicConformer adapter; transcripts require user review before sending.
 - **Administration and notifications:** Platform and hospital admins have scoped account, appointment, payment-status, audit, and aggregate views. Optional SMTP/SMS notifications record explicit outcomes and send only a generic sign-in reminder; contact addresses are not verified. Medical-record exchange is not integrated.
 - **Database changes:** Alembic migrations run automatically before the API starts.
@@ -28,7 +28,7 @@ Triage rules are a limited development safeguard, not a clinically validated scr
 ## Start the app
 
 1. From the project folder, copy `.env.example` to `.env` if you do not already have a local `.env`.
-2. Replace the example `JWT_SECRET_KEY`, `POSTGRES_PASSWORD`, and `PGADMIN_DEFAULT_PASSWORD` with separate random secrets. URL-encode reserved characters in `POSTGRES_PASSWORD` when setting `DATABASE_URL`. Never commit `.env`.
+2. Replace the example `JWT_SECRET_KEY`, `POSTGRES_PASSWORD`, and `PGADMIN_DEFAULT_PASSWORD` with separate random secrets. Generate a one-time `ADMIN_BOOTSTRAP_TOKEN` using `openssl rand -hex 32`; use a unique token of at least 32 characters and keep it private. `.env.example` selects `PAYMENT_MODE=demo` for local testing. URL-encode reserved characters in `POSTGRES_PASSWORD` when setting `DATABASE_URL`. Never commit `.env`.
 3. Start the app:
 
    ```powershell
@@ -42,13 +42,26 @@ The database is persisted in the `postgres_data` Docker volume. Stop the app wit
 
 pgAdmin is bound to localhost at <http://localhost:5050>; configure a unique `PGADMIN_DEFAULT_PASSWORD` before using it. Its settings are stored in the `pgadmin_data` volume. The API can start and serve deterministic emergency triage when Ollama is unavailable; AI chat will report provider failures until the configured model service is available.
 
-Razorpay is optional. Online checkout requires `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`; webhook processing additionally requires the webhook secret configured in the Razorpay dashboard. Configure the Razorpay webhook URL as `https://<your-api-host>/api/v1/billing/webhooks/razorpay` and subscribe to `payment.captured` and `payment.failed`. The API creates orders using the invoice amount, verifies checkout signatures and payment state server-side, validates webhook signatures against the exact raw request body, and stores processed webhook event IDs to safely accept provider retries. Only the public key ID is returned for checkout; the key secret and webhook secret must remain backend-only. Empty credentials or mocked test runs do not establish live payment verification.
+`PAYMENT_MODE=demo` enables a clearly labeled local simulation without contacting Razorpay or collecting payment credentials. Patients can choose a simulated success, failure, or cancellation from Billing & Payments; only a pending owner-authorized demo attempt can be completed, and failed/cancelled attempts leave the invoice unpaid. A successful demo updates the local invoice and payment history but is not evidence of a money transfer. Production configuration rejects demo mode.
+
+For provider-processed payments, set `PAYMENT_MODE=live` and configure `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`; webhook processing additionally requires the secret configured in the Razorpay dashboard. Configure the webhook URL as `https://<your-api-host>/api/v1/billing/webhooks/razorpay` and subscribe to `payment.captured` and `payment.failed`. The API verifies checkout signatures and provider payment state server-side, validates webhook signatures against the exact raw request body, and stores processed event IDs for safe retries. Only the public key ID is returned for checkout; the key secret and webhook secret must remain backend-only. Automated tests mock the provider and never perform real charges.
 
 Email notifications reuse the optional SMTP configuration. SMS is opt-in and uses `SMS_API_URL` plus `SMS_API_TOKEN`; the HTTPS endpoint must accept a bearer token and JSON `{"to": "+<E.164>", "message": "..."}` and return a 2xx status on acceptance. Users may save or clear their own E.164 notification number from profile/admin settings. Neither email addresses nor phone numbers are verified, so both channels contain only a generic sign-in reminder, never appointment, billing, or health details. Delivery attempts store only user/hospital IDs, channel, event type, outcome, and a failure code; message contents, destination addresses, and provider response bodies are not stored. Missing configuration/contact and provider errors are shown as explicit delivery outcomes and never change the result of the appointment, verification, or billing operation. No email/SMS credentials are configured by default.
 
 ## Accounts, roles, and password reset
 
-Public registration creates patient accounts only. Privileged accounts must be provisioned by an operator after their hospital and, for doctors, clinician profile exist:
+Public registration creates patient accounts only. For a new installation, set `ADMIN_BOOTSTRAP_TOKEN` in `.env`, start the app, select **Initial administrator setup** on the public page, and enter the token along with the administrator's name, email, and a strong password (12+ characters with uppercase, lowercase, number, and symbol). The bootstrap is database-locked, succeeds once, and is closed after an administrator exists. Subsequent privileged accounts are created in **Administration** by a platform administrator; a hospital administrator can create doctor accounts only for clinician profiles at their assigned hospital.
+
+Onboarding from the website:
+
+1. Sign in as the platform administrator and open **Provider dashboard**.
+2. Select **Add a hospital profile**. The page displays its generated ID and pending-verification status after saving.
+3. Open **Administration → Create a staff account**, select **Hospital administrator**, choose that hospital, and enter the account details. Hospital administrators can then sign in and add clinician profiles from their Provider dashboard; the hospital association comes from their account and is enforced by the API.
+4. A platform administrator verifies the hospital and clinician in the Provider dashboard review queue. Unverified records are not shown in the public directory.
+5. To enable a doctor's login, use **Administration → Create a staff account**, select **Doctor login**, and link the account to the existing clinician profile. A hospital administrator can create doctor logins only within their own hospital.
+6. Patients register from **Create account**; public registration cannot assign staff or administrator roles.
+
+Trusted operators can still provision other staff roles, such as `hospital_staff`, from the CLI after the hospital exists:
 
 ```sh
 docker compose exec backend python -m app.cli create-account doctor@example.com --role doctor --hospital-id 1 --doctor-id 1
@@ -179,12 +192,16 @@ All application routes are under `/api/v1`.
 | Endpoint | Access | Purpose |
 | --- | --- | --- |
 | `POST /auth/register`, `POST /auth/login` | Public | Register or sign in |
+| `GET /auth/bootstrap/status`, `POST /auth/bootstrap/platform-admin` | Public, one-time token required for creation | Check and perform initial platform-admin setup |
 | `GET /auth/me` | Signed in | Current account |
 | `/patients` | Signed in, owner-scoped | Read and update the current patient's profile |
 | `POST /assistant/chat` | Signed in | OpenAI-compatible chat proxy |
-| `GET /billing/invoices`, `GET /billing/config` | Signed in | Invoice history and payment readiness |
-| `POST /billing/invoices` | Clinic staff | Issue an invoice |
-| `POST /billing/checkout`, `POST /billing/verify` | Invoice owner | Create and verify Razorpay checkout |
+| `GET /billing/invoices`, `/billing/payments`, `/billing/config` | Signed in, owner/tenant-scoped | Invoice history, payment history, and mode/readiness |
+| `GET /billing/billable-appointments` | Clinic staff | List unbilled appointments within the caller's tenant |
+| `POST /billing/invoices` | Clinic staff | Issue a service invoice or an appointment invoice priced from the clinician's stored fee |
+| `POST /billing/checkout` | Invoice owner | Create a demo attempt or Razorpay checkout order |
+| `POST /billing/demo/complete` | Invoice owner, demo mode only | Complete one pending simulated attempt as success, failure, or cancellation |
+| `POST /billing/verify` | Invoice owner, live mode | Verify Razorpay checkout signature and captured provider payment |
 | `POST /billing/webhooks/razorpay` | Razorpay signature | Mark captured payment from webhook |
 | `GET /providers/doctors`, `/providers/hospitals` | Signed in | Paginated verified directory and filters |
 | `GET /providers/doctors/{id}`, `/providers/hospitals/{id}` | Signed in | Verified provider profile details |
@@ -199,6 +216,7 @@ All application routes are under `/api/v1`.
 | `POST /providers/appointments/{id}/confirm` | Assigned clinician or hospital care team | Confirm a scheduled appointment |
 | `PATCH /providers/appointments/{id}/cancel`, `/providers/appointments/{id}/reschedule` | Authorized appointment participant | Cancel or reschedule; rescheduling requires an `Idempotency-Key` |
 | `/admin/overview`, `/admin/users`, `/admin/appointments`, `/admin/payments`, `/admin/audit-logs`, `/admin/notifications` | Platform or hospital administrator | Scoped operational views; analytics are aggregated and small counts suppressed |
+| `GET /admin/hospitals`, `GET /admin/doctors`, `POST /admin/accounts` | Platform or tenant hospital administrator | Select scoped hospitals/clinicians and create authorized staff accounts |
 | `PATCH /admin/users/{id}` | Platform administrator; hospital admin for own staff activation only | Update managed role/access and revoke active sessions |
 | `PATCH /auth/me` | Signed in | Set or clear the account's optional E.164 notification phone number |
 
@@ -206,7 +224,14 @@ Provider profile data, schedule semantics, tenant permissions, verification poli
 
 Appointments are stored as timezone-aware timestamps and returned in UTC; slot metadata and the portal render times in `Asia/Kolkata` (IST). Booking/rescheduling requests are protected against retries with actor-scoped idempotency keys. A unique database constraint on each occupied 30-minute doctor slot arbitrates concurrent bookings; cancelled appointments release those locks. Migration `0006_transactional_appointments` backfills history and locks for existing active appointments and stops rather than silently rewriting overlapping active bookings.
 
-Payment webhook receipts and captured/failed payment state are persisted by migration `0007_payment_webhook_idempotency`. Repeated event IDs with the same body are acknowledged without reapplying state; reuse of an event ID with different content is rejected. Payment failures do not mark invoices paid, and a later verified capture can transition the payment to paid. Migration `0009_align_metadata_indexes` aligns ORM indexes with the database and removes redundant token-hash uniqueness while preserving the unique index. The included payment integration tests use mocked Razorpay HTTP responses and do not prove that live credentials, dashboard webhook configuration, or live settlement are working.
+Payment webhook receipts and captured/failed payment state are persisted by migration `0007_payment_webhook_idempotency`. Repeated event IDs with the same body are acknowledged without reapplying state; reuse of an event ID with different content is rejected. Migration `0010_admin_bootstrap_state` stores the one-time bootstrap lock/state, and `0011_appointment_invoices` adds the optional appointment association and unique billable-event constraint. Demo attempts expire after 15 minutes, are owner- and invoice-scoped, and keep failure/cancellation separate from settlement. Migration `0009_align_metadata_indexes` aligns ORM indexes with the database and removes redundant token-hash uniqueness while preserving the unique index. Automated payment tests use simulated attempts or mocked Razorpay responses; they do not establish live credentials, webhook configuration, or settlement.
+
+Run checks from the project root:
+
+```sh
+cd backend && pytest -q
+cd ../frontend && npm test && npm run build
+```
 
 ## Before production
 

@@ -1,0 +1,516 @@
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.core.email_validation import normalize_email
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.auth.security import get_current_user, hash_password, revoke_user_sessions
+from app.core.database import get_db
+from app.models.billing import Invoice, Payment
+from app.models.providers import Appointment, Doctor, Hospital
+from app.models.security import AuditLog, NotificationDelivery
+from app.models.user import User
+from app.services.audit_service import record_audit
+from app.services.notification_service import notify_user
+
+router = APIRouter(prefix="/admin", tags=["Administration"])
+ADMIN_ROLES = {"platform_admin", "hospital_admin"}
+MANAGED_ROLES = {"doctor", "hospital_staff", "hospital_admin", "platform_admin"}
+
+
+class UserAdminUpdate(BaseModel):
+    role: str | None = None
+    hospital_id: int | None = Field(default=None, gt=0)
+    doctor_id: int | None = Field(default=None, gt=0)
+    is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def require_update(self):
+        if not any(getattr(self, field) is not None for field in ("role", "hospital_id", "doctor_id", "is_active")):
+            raise ValueError("At least one non-null account update is required.")
+        return self
+
+
+class AccountCreate(BaseModel):
+    full_name: str = Field(min_length=2, max_length=120)
+    email: str
+    role: str = Field(pattern="^(doctor|hospital_admin)$")
+    hospital_id: int = Field(gt=0)
+    doctor_id: int | None = Field(default=None, gt=0)
+    password: str = Field(min_length=12, max_length=128)
+    password_confirmation: str = Field(min_length=12, max_length=128)
+
+    @field_validator("full_name")
+    @classmethod
+    def strip_full_name(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 2:
+            raise ValueError("Full name must contain at least 2 non-space characters.")
+        return value
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return normalize_email(value)
+
+    @field_validator("password")
+    @classmethod
+    def validate_strong_password(cls, value: str) -> str:
+        if (
+            not any(char.islower() for char in value)
+            or not any(char.isupper() for char in value)
+            or not any(char.isdigit() for char in value)
+            or not any(not char.isalnum() for char in value)
+        ):
+            raise ValueError("Password must include lowercase, uppercase, numeric, and special characters.")
+        return value
+
+    @field_validator("password_confirmation")
+    @classmethod
+    def validate_confirmation(cls, value: str, info) -> str:
+        password = info.data.get("password")
+        if password is not None and value != password:
+            raise ValueError("Password confirmation does not match.")
+        return value
+
+    @model_validator(mode="after")
+    def validate_doctor_link(self):
+        if (self.role == "doctor") != (self.doctor_id is not None):
+            raise ValueError("Doctor accounts must link a doctor profile; hospital administrator accounts must not.")
+        return self
+
+
+def _admin_hospital(user: User) -> int | None:
+    if user.role not in ADMIN_ROLES:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Administration access is required.")
+    return user.hospital_id if user.role == "hospital_admin" else None
+
+
+@router.get("/hospitals")
+def list_account_hospitals(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    hospital_id = _admin_hospital(user)
+    query = select(Hospital).order_by(Hospital.name.asc(), Hospital.id.asc())
+    if hospital_id is not None:
+        query = query.where(Hospital.id == hospital_id)
+    return [
+        {"id": item.id, "name": item.name, "city": item.city, "verification_status": item.verification_status}
+        for item in db.scalars(query).all()
+    ]
+
+
+@router.get("/doctors")
+def list_account_doctors(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    hospital_id = _admin_hospital(user)
+    query = select(Doctor).order_by(Doctor.full_name.asc(), Doctor.id.asc())
+    if hospital_id is not None:
+        query = query.where(Doctor.hospital_id == hospital_id)
+    return [
+        {
+            "id": item.id,
+            "hospital_id": item.hospital_id,
+            "full_name": item.full_name,
+            "specialty": item.specialty,
+            "is_active": item.is_active,
+        }
+        for item in db.scalars(query).all()
+    ]
+
+
+@router.post("/accounts", status_code=status.HTTP_201_CREATED)
+def create_managed_account(
+    payload: AccountCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    hospital_id = _admin_hospital(user)
+    if user.role == "hospital_admin" and payload.role != "doctor":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Hospital administrators may only create doctor accounts.")
+    hospital = db.get(Hospital, payload.hospital_id)
+    if hospital is None or (hospital_id is not None and hospital.id != hospital_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Hospital not found in your administrative scope.")
+    doctor = None
+    if payload.role == "doctor":
+        doctor = db.get(Doctor, payload.doctor_id)
+        if (
+            doctor is None
+            or doctor.hospital_id != hospital.id
+            or not doctor.is_active
+        ):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Active clinician profile not found at this hospital.")
+    normalized_email = str(payload.email).lower()
+    if db.scalar(select(User.id).where(User.email == normalized_email)) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "An account with that email already exists.")
+    account = User(
+        full_name=payload.full_name,
+        email=normalized_email,
+        password_hash=hash_password(payload.password),
+        role=payload.role,
+        hospital_id=hospital.id,
+        doctor_id=doctor.id if doctor is not None else None,
+    )
+    db.add(account)
+    try:
+        db.flush()
+        record_audit(
+            db,
+            request,
+            "account.provisioned",
+            actor=user,
+            hospital_id=hospital.id,
+            resource_type="user",
+            resource_id=account.id,
+            details={"role": account.role},
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "The account could not be created because it conflicts with an existing account.") from exc
+    db.refresh(account)
+    return {
+        "id": account.id,
+        "full_name": account.full_name,
+        "email": account.email,
+        "role": account.role,
+        "hospital_id": account.hospital_id,
+        "doctor_id": account.doctor_id,
+        "is_active": account.is_active,
+        "created_at": account.created_at,
+    }
+
+
+def _visible_count(value: int) -> dict[str, int | bool | None]:
+    return {"count": None if 0 < value < 5 else value, "suppressed": 0 < value < 5}
+
+
+def _status_counts(db: Session, model, column, hospital_id: int | None) -> dict[str, dict[str, int | bool | None]]:
+    query = select(column, func.count()).select_from(model)
+    if hospital_id is not None:
+        if model is Payment:
+            query = query.join(Invoice, Invoice.id == Payment.invoice_id).where(Invoice.hospital_id == hospital_id)
+        elif model is Hospital:
+            query = query.where(Hospital.id == hospital_id)
+        else:
+            query = query.where(model.hospital_id == hospital_id)
+    return {str(key or "unknown"): _visible_count(count) for key, count in db.execute(query.group_by(column))}
+
+
+@router.get("/overview")
+def admin_overview(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    hospital_id = _admin_hospital(user)
+    role_query = select(User.role, func.count()).where(User.is_active.is_(True))
+    if hospital_id is not None:
+        role_query = role_query.where(User.hospital_id == hospital_id)
+    user_counts = {
+        role: _visible_count(count)
+        for role, count in db.execute(role_query.group_by(User.role))
+    }
+    return {
+        "data_source": "database",
+        "demo_records": False,
+        "users_by_role": user_counts,
+        "appointments_by_status": _status_counts(db, Appointment, Appointment.status, hospital_id),
+        "payments_by_status": _status_counts(db, Payment, Payment.status, hospital_id),
+        "invoices_by_status": _status_counts(db, Invoice, Invoice.status, hospital_id),
+        "doctors_by_verification": _status_counts(db, Doctor, Doctor.verification_status, hospital_id),
+        "hospitals_by_verification": _status_counts(db, Hospital, Hospital.verification_status, hospital_id),
+    }
+
+
+@router.get("/users")
+def list_admin_users(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    role: str | None = Query(default=None, pattern="^(doctor|hospital_staff|hospital_admin|platform_admin)$"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    hospital_id = _admin_hospital(user)
+    query = select(User).where(User.role != "patient")
+    if hospital_id is not None:
+        query = query.where(User.hospital_id == hospital_id, User.role == "hospital_staff")
+    if role:
+        query = query.where(User.role == role)
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    users = db.scalars(query.order_by(User.id.asc()).limit(limit).offset(offset)).all()
+    return {
+        "items": [
+            {
+                "id": item.id,
+                "full_name": item.full_name,
+                "email": item.email,
+                "role": item.role,
+                "hospital_id": item.hospital_id,
+                "doctor_id": item.doctor_id,
+                "is_active": item.is_active,
+                "created_at": item.created_at,
+            }
+            for item in users
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.patch("/users/{user_id}")
+def update_admin_user(
+    user_id: int,
+    payload: UserAdminUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if user.role not in ADMIN_ROLES:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Administration access is required.")
+    if not payload.model_fields_set:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Provide an account role or active-state update.")
+    target = db.scalar(select(User).where(User.id == user_id).with_for_update())
+    if target is None or target.role == "patient":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Managed account not found.")
+    if target.id == user.id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Administrators cannot change their own role or account status here.")
+
+    if user.role == "hospital_admin":
+        if target.hospital_id != user.hospital_id or target.role != "hospital_staff":
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Managed account not found in this hospital.")
+        if payload.role is not None or payload.hospital_id is not None or payload.doctor_id is not None:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Hospital administrators may only activate or deactivate hospital staff.")
+    else:
+        if target.role == "platform_admin":
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Platform administrator roles cannot be changed through this endpoint.")
+        if payload.role is not None:
+            if payload.role not in MANAGED_ROLES - {"platform_admin"}:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unsupported managed account role.")
+            target.role = payload.role
+        if payload.hospital_id is not None:
+            if db.get(Hospital, payload.hospital_id) is None:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "Hospital not found.")
+            target.hospital_id = payload.hospital_id
+        if payload.doctor_id is not None:
+            doctor = db.get(Doctor, payload.doctor_id)
+            if doctor is None:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "Clinician profile not found.")
+            target.doctor_id = doctor.id
+            target.hospital_id = doctor.hospital_id
+        if target.role == "doctor":
+            doctor = db.get(Doctor, target.doctor_id) if target.doctor_id is not None else None
+            if doctor is None or doctor.hospital_id != target.hospital_id:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Doctor accounts must be linked to a clinician at the assigned hospital.")
+        elif target.role in {"hospital_staff", "hospital_admin"}:
+            if target.hospital_id is None or db.get(Hospital, target.hospital_id) is None:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Hospital accounts must be assigned to an existing hospital.")
+            target.doctor_id = None
+        elif target.role == "platform_admin":
+            target.hospital_id = None
+            target.doctor_id = None
+
+    if payload.is_active is not None:
+        if target.role == "platform_admin" and not payload.is_active:
+            active_platform_admins = db.scalar(
+                select(func.count()).select_from(User).where(
+                    User.role == "platform_admin",
+                    User.is_active.is_(True),
+                )
+            ) or 0
+            if active_platform_admins <= 1:
+                raise HTTPException(status.HTTP_409_CONFLICT, "The last active platform administrator cannot be deactivated.")
+        target.is_active = payload.is_active
+
+    revoke_user_sessions(db, target.id)
+    record_audit(
+        db,
+        request,
+        "admin.user.update",
+        actor=user,
+        hospital_id=target.hospital_id,
+        resource_type="user",
+        resource_id=target.id,
+        details={"role": target.role, "is_active": target.is_active},
+    )
+    db.commit()
+    db.refresh(target)
+    notify_user(
+        db,
+        target,
+        "admin.account.updated",
+        hospital_id=target.hospital_id,
+    )
+    return {
+        "id": target.id,
+        "role": target.role,
+        "hospital_id": target.hospital_id,
+        "doctor_id": target.doctor_id,
+        "is_active": target.is_active,
+    }
+
+
+@router.get("/appointments")
+def list_admin_appointments(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    appointment_status: str | None = Query(default=None, alias="status", max_length=20),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    hospital_id = _admin_hospital(user)
+    query = select(Appointment, Doctor).join(Doctor, Doctor.id == Appointment.doctor_id)
+    if hospital_id is not None:
+        query = query.where(Appointment.hospital_id == hospital_id)
+    if appointment_status:
+        query = query.where(Appointment.status == appointment_status)
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.execute(
+        query.order_by(Appointment.scheduled_for.desc(), Appointment.id.desc()).limit(limit).offset(offset)
+    ).all()
+    return {
+        "items": [
+            {
+                "id": appointment.id,
+                "doctor_id": appointment.doctor_id,
+                "doctor_name": doctor.full_name,
+                "hospital_id": appointment.hospital_id,
+                "scheduled_for": appointment.scheduled_for,
+                "duration_minutes": appointment.duration_minutes,
+                "consultation_type": appointment.consultation_type,
+                "status": appointment.status,
+            }
+            for appointment, doctor in rows
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/payments")
+def list_admin_payments(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    hospital_id = _admin_hospital(user)
+    query = select(Payment, Invoice).join(Invoice, Invoice.id == Payment.invoice_id)
+    if hospital_id is not None:
+        query = query.where(Invoice.hospital_id == hospital_id)
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.execute(
+        query.order_by(Payment.created_at.desc(), Payment.id.desc()).limit(limit).offset(offset)
+    ).all()
+    return {
+        "items": [
+            {
+                "id": payment.id,
+                "invoice_id": invoice.id,
+                "invoice_number": invoice.invoice_number,
+                "amount_minor": invoice.amount_minor,
+                "currency": invoice.currency,
+                "invoice_status": invoice.status,
+                "payment_status": payment.status,
+                "failure_code": payment.failure_code,
+                "created_at": payment.created_at,
+                "updated_at": payment.updated_at,
+            }
+            for payment, invoice in rows
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/audit-logs")
+def list_admin_audit_logs(
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    action: str | None = Query(default=None, max_length=80),
+    since: datetime | None = Query(default=None),
+    until: datetime | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    hospital_id = _admin_hospital(user)
+    query = select(AuditLog)
+    if hospital_id is not None:
+        query = query.where(AuditLog.hospital_id == hospital_id)
+    if action:
+        query = query.where(AuditLog.action == action)
+    if since:
+        query = query.where(AuditLog.created_at >= since)
+    if until:
+        query = query.where(AuditLog.created_at <= until)
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    entries = db.scalars(
+        query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(limit).offset(offset)
+    ).all()
+    record_audit(
+        db,
+        request,
+        "admin.audit_logs.read",
+        actor=user,
+        hospital_id=hospital_id,
+        details={"count": len(entries)},
+    )
+    db.commit()
+    return {
+        "items": [
+            {
+                "id": entry.id,
+                "actor_user_id": entry.actor_user_id,
+                "hospital_id": entry.hospital_id,
+                "action": entry.action,
+                "resource_type": entry.resource_type,
+                "resource_id": entry.resource_id,
+                "created_at": entry.created_at,
+            }
+            for entry in entries
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/notifications")
+def list_admin_notification_deliveries(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    hospital_id = _admin_hospital(user)
+    query = select(NotificationDelivery)
+    if hospital_id is not None:
+        query = query.where(NotificationDelivery.hospital_id == hospital_id)
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    deliveries = db.scalars(
+        query.order_by(NotificationDelivery.created_at.desc(), NotificationDelivery.id.desc())
+        .limit(limit)
+        .offset(offset)
+    ).all()
+    return {
+        "items": [
+            {
+                "id": item.id,
+                "user_id": item.user_id,
+                "channel": item.channel,
+                "event_type": item.event_type,
+                "status": item.status,
+                "failure_code": item.failure_code,
+                "created_at": item.created_at,
+            }
+            for item in deliveries
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
