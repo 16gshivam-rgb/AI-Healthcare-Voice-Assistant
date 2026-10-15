@@ -45,7 +45,10 @@ def test_first_admin_bootstrap_requires_token_and_is_one_time(db_sessions, monke
         db.commit()
 
     with TestClient(app) as client:
-        assert client.get("/api/v1/auth/bootstrap/status").json() == {"setup_available": True}
+        assert client.get("/api/v1/auth/bootstrap/status").json() == {
+            "setup_available": True,
+            "reason": "available",
+        }
         payload = {
             "full_name": "First Administrator",
             "email": "platform@example.test",
@@ -59,7 +62,10 @@ def test_first_admin_bootstrap_requires_token_and_is_one_time(db_sessions, monke
         created = client.post("/api/v1/auth/bootstrap/platform-admin", json=payload)
         assert created.status_code == 201
         assert created.json()["user"]["role"] == "platform_admin"
-        assert client.get("/api/v1/auth/bootstrap/status").json() == {"setup_available": False}
+        assert client.get("/api/v1/auth/bootstrap/status").json() == {
+            "setup_available": False,
+            "reason": "complete",
+        }
         assert client.post("/api/v1/auth/bootstrap/platform-admin", json=payload).status_code == 409
 
         registered = client.post(
@@ -79,6 +85,19 @@ def test_first_admin_bootstrap_requires_token_and_is_one_time(db_sessions, monke
         state = db.get(AdminBootstrapState, 1)
         assert admin is not None and verify_password("SecureAdmin123!", admin.password_hash)
         assert state is not None and state.completed
+
+
+def test_bootstrap_status_explains_missing_setup_token(db_sessions, monkeypatch):
+    monkeypatch.setattr(settings, "admin_bootstrap_token", "")
+    with db_sessions() as db:
+        db.add(AdminBootstrapState(id=1, completed=False))
+        db.commit()
+
+    with TestClient(app) as client:
+        assert client.get("/api/v1/auth/bootstrap/status").json() == {
+            "setup_available": False,
+            "reason": "token_not_configured",
+        }
 
 
 def test_admin_account_creation_is_scoped_and_audited(db_sessions):

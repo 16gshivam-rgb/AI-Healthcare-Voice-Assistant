@@ -47,6 +47,7 @@ function storageGet(key, fallback = "") {
 
 export default function App() {
   const isPasswordResetPath = window.location.pathname === "/reset-password";
+  const isAdminSetupPath = window.location.pathname === "/setup/administrator";
   const [token, setToken] = useState(() => isPasswordResetPath ? "" : storageGet("ahva_token"));
   const [user, setUser] = useState(readCachedUser);
   const [language, setLanguage] = useState(() => storageGet("carevoice_language", "en"));
@@ -57,8 +58,10 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [authMode, setAuthMode] = useState(() => window.location.pathname === "/reset-password" ? "reset-password" : "landing");
-  const [bootstrapAvailable, setBootstrapAvailable] = useState(false);
+  const [authMode, setAuthMode] = useState(() => (
+    isPasswordResetPath ? "reset-password" : isAdminSetupPath ? "bootstrap" : "landing"
+  ));
+  const [bootstrapStatus, setBootstrapStatus] = useState({ setup_available: false, reason: "checking" });
   const [auth, setAuth] = useState({
     full_name: "",
     email: "",
@@ -71,10 +74,33 @@ export default function App() {
   useEffect(() => {
     let active = true;
     apiRequest("/auth/bootstrap/status", "")
-      .then((result) => { if (active) setBootstrapAvailable(result.setup_available); })
-      .catch(() => { if (active) setBootstrapAvailable(false); });
+      .then((result) => {
+        if (active) setBootstrapStatus({
+          setup_available: result.setup_available === true,
+          reason: result.reason || (result.setup_available ? "available" : "unavailable"),
+        });
+      })
+      .catch(() => {
+        if (active) setBootstrapStatus({ setup_available: false, reason: "status_unavailable" });
+      });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    const handleHistoryChange = () => {
+      setAuthMode(window.location.pathname === "/setup/administrator" ? "bootstrap" : "landing");
+    };
+    window.addEventListener("popstate", handleHistoryChange);
+    return () => window.removeEventListener("popstate", handleHistoryChange);
+  }, []);
+
+  function changeAuthMode(mode) {
+    const nextPath = mode === "bootstrap" ? "/setup/administrator" : "/";
+    if (window.location.pathname !== nextPath) window.history.pushState({}, "", nextPath);
+    setAuthMode(mode);
+    setError("");
+    setNotice("");
+  }
 
   useEffect(() => {
     if (!isPasswordResetPath) return;
@@ -101,6 +127,7 @@ export default function App() {
         const patientRows = account.role === "patient" ? await apiRequest("/patients/", token) : [];
         if (!active) return;
         setUser(account);
+        setPage(account.role === "patient" ? "Overview" : "Provider dashboard");
         setPatients(patientRows);
         try {
           window.localStorage.setItem("ahva_user", JSON.stringify(account));
@@ -168,6 +195,7 @@ export default function App() {
     setPatients([]);
     setPage("Overview");
     setAuthMode("landing");
+    if (window.location.pathname !== "/") window.history.replaceState({}, "", "/");
     setError(logoutError);
     setNotice("");
   }
@@ -195,9 +223,11 @@ export default function App() {
         throw new Error("Your browser could not save the sign-in session. Check browser storage settings and try again.");
       }
       setUser(result.user);
+      setPage(result.user.role === "patient" ? "Overview" : "Provider dashboard");
       setToken(result.access_token);
       setNotice(authMode === "register" ? "Your account was created." : "You’re signed in.");
-      setBootstrapAvailable(false);
+      setBootstrapStatus({ setup_available: false, reason: "complete" });
+      if (authMode === "bootstrap") window.history.replaceState({}, "", "/");
     } catch (reason) {
       setError(reason.message || "We couldn’t complete sign-in. Please try again.");
     } finally {
@@ -282,7 +312,6 @@ export default function App() {
     return (
       <AuthScreen
         mode={authMode}
-        setMode={setAuthMode}
         auth={auth}
         setAuth={setAuth}
         setError={setError}
@@ -292,7 +321,8 @@ export default function App() {
         notice={notice}
         language={language}
         setLanguage={changeLanguage}
-        bootstrapAvailable={bootstrapAvailable}
+        bootstrapStatus={bootstrapStatus}
+        setMode={changeAuthMode}
         onSubmit={submitAuth}
         onResetRequest={submitPasswordResetRequest}
         onResetConfirm={submitPasswordReset}
@@ -304,16 +334,17 @@ export default function App() {
   const isHindi = language === "hi";
   const isAdmin = user?.role === "platform_admin" || user?.role === "hospital_admin";
   const canAccessBilling = user?.role === "patient" || ["hospital_staff", "hospital_admin", "platform_admin"].includes(user?.role);
+  const homePage = user?.role === "patient" ? "Overview" : "Provider dashboard";
   const visibleNavigation = user?.role === "patient"
     ? navigation
-    : [...providerNavigation, ...(isAdmin ? administrationNavigation : []), ...navigation.filter((item) => ["Overview", "Find care", "Appointments"].includes(item.id)), ...(canAccessBilling ? navigation.filter((item) => item.id === "Billing") : [])];
+    : [...providerNavigation, ...(isAdmin ? administrationNavigation : []), ...navigation.filter((item) => ["Find care", "Appointments"].includes(item.id)), ...(canAccessBilling ? navigation.filter((item) => item.id === "Billing") : [])];
   const currentPage = visibleNavigation.find((item) => item.id === page);
   const pageLabel = currentPage ? (isHindi ? currentPage.hi : currentPage.en) : page;
 
   return (
     <div className="cv-app-shell">
       <aside className="cv-sidebar">
-        <a className="cv-brand" href="#home" onClick={(event) => { event.preventDefault(); setPage("Overview"); }}>
+        <a className="cv-brand" href="#home" onClick={(event) => { event.preventDefault(); setPage(homePage); }}>
           <span className="cv-brand-mark" aria-hidden="true">✚</span><span>CareVoice<small>HEALTH</small></span>
         </a>
         <div className="cv-nav-label">{isHindi ? "आपका कार्यक्षेत्र" : "YOUR WORKSPACE"}</div>
@@ -367,7 +398,7 @@ export default function App() {
   );
 }
 
-function AuthScreen({ mode, setMode, auth, setAuth, setError, setNotice, busy, error, notice, language, setLanguage, bootstrapAvailable, onSubmit, onResetRequest, onResetConfirm, resetToken }) {
+function AuthScreen({ mode, setMode, auth, setAuth, setError, setNotice, busy, error, notice, language, setLanguage, bootstrapStatus, onSubmit, onResetRequest, onResetConfirm, resetToken }) {
   const hi = language === "hi";
   const isLogin = mode === "login";
   const isRegister = mode === "register";
@@ -386,7 +417,7 @@ function AuthScreen({ mode, setMode, auth, setAuth, setError, setNotice, busy, e
           <LanguageToggle language={language} setLanguage={setLanguage} />
           <button className="cv-button cv-button-quiet" onClick={() => setMode("login")}>{hi ? "साइन इन" : "Sign in"}</button>
           <button className="cv-button cv-button-primary" onClick={() => setMode("register")}>{hi ? "खाता बनाएँ" : "Create account"}</button>
-          {bootstrapAvailable && <button className="cv-button cv-button-quiet" onClick={() => setMode("bootstrap")}>{hi ? "प्रारंभिक व्यवस्थापक सेटअप" : "Initial administrator setup"}</button>}
+          {bootstrapStatus.reason !== "complete" && <button className="cv-button cv-button-quiet" onClick={() => setMode("bootstrap")}>{hi ? "प्रारंभिक व्यवस्थापक सेटअप" : "Initial administrator setup"}</button>}
         </nav>
       </header>
       {mode === "landing" ? (
@@ -431,6 +462,10 @@ function AuthScreen({ mode, setMode, auth, setAuth, setError, setNotice, busy, e
             <span className="eyebrow">{isRegister ? (hi ? "खाता पंजीकरण" : "ACCOUNT REGISTRATION") : isBootstrap ? (hi ? "एक बार का व्यवस्थापक सेटअप" : "ONE-TIME ADMINISTRATOR SETUP") : isResetRequest || isResetConfirm ? (hi ? "पासवर्ड रिकवरी" : "PASSWORD RECOVERY") : (hi ? "सुरक्षित साइन इन" : "SECURE SIGN IN")}</span>
             <h2>{isRegister ? (hi ? "खाता बनाएँ" : "Create your account") : isBootstrap ? (hi ? "प्रारंभिक व्यवस्थापक बनाएँ" : "Create initial administrator") : isResetRequest ? (hi ? "पासवर्ड रीसेट करें" : "Reset your password") : isResetConfirm ? (hi ? "नया पासवर्ड चुनें" : "Choose a new password") : (hi ? "साइन इन करें" : "Sign in")}</h2>
             <p className="cv-subtle">{isBootstrap ? (hi ? "यह केवल पहले व्यवस्थापक के लिए उपलब्ध है। सर्वर ऑपरेटर से सेटअप टोकन प्राप्त करें।" : "Available only for the first administrator. Obtain the setup token from the server operator.") : isResetRequest ? (hi ? "यदि इस ईमेल से खाता जुड़ा है, तो रीसेट निर्देश भेजे जाएँगे।" : "If an account matches this email, reset instructions will be sent.") : isResetConfirm ? (hi ? "रीसेट लिंक से नया पासवर्ड बनाएँ।" : "Set a new password using your reset link.") : isRegister ? (hi ? "शुरू करने के लिए नीचे जानकारी भरें।" : "A few details to get your account started.") : (hi ? "अपने केयर पोर्टल तक पहुँचने के लिए साइन इन करें।" : "Sign in to access your clinic-connected care portal.")}</p>
+            {isBootstrap && bootstrapStatus.reason === "token_not_configured" && <div className="cv-error" role="alert">{hi ? "प्रारंभिक सेटअप सक्षम नहीं है। बैकएंड .env में कम से कम 32 अक्षरों वाला ADMIN_BOOTSTRAP_TOKEN सेट करें और बैकएंड रीस्टार्ट करें।" : "Initial setup is not enabled. Set ADMIN_BOOTSTRAP_TOKEN (at least 32 characters) in the backend .env file, then restart the backend."}</div>}
+            {isBootstrap && bootstrapStatus.reason === "state_unavailable" && <div className="cv-error" role="alert">{hi ? "सेटअप स्थिति उपलब्ध नहीं है। डेटाबेस माइग्रेशन जाँचें और बैकएंड रीस्टार्ट करें।" : "Setup state is unavailable. Check that database migrations completed, then restart the backend."}</div>}
+            {isBootstrap && bootstrapStatus.reason === "status_unavailable" && <div className="cv-error" role="alert">{hi ? "बैकएंड से सेटअप स्थिति नहीं मिल सकी। कनेक्शन जाँचें और पुनः प्रयास करें।" : "Could not check setup availability with the backend. Check the connection and try again."}</div>}
+            {isBootstrap && bootstrapStatus.reason === "complete" && <div className="cv-success" role="status">{hi ? "प्रारंभिक व्यवस्थापक सेटअप पहले ही पूरा हो चुका है। साइन इन करें।" : "Initial administrator setup is already complete. Please sign in."}</div>}
             {error && <div className="cv-error" role="alert">{error}</div>}
             {notice && <div className="cv-success" role="status">{notice}</div>}
             {(isRegister || isBootstrap) && <label>{hi ? "पूरा नाम" : "Full name"}<input autoComplete="name" required minLength={2} maxLength={120} value={auth.full_name} onChange={(event) => setAuth({ ...auth, full_name: event.target.value })} placeholder={hi ? "आपका पूरा नाम" : "Your full name"} /></label>}
@@ -439,7 +474,7 @@ function AuthScreen({ mode, setMode, auth, setAuth, setError, setNotice, busy, e
             {isResetConfirm && !resetToken && <p className="cv-error" role="alert">{hi ? "रीसेट लिंक में टोकन नहीं है। कृपया नया लिंक माँगें।" : "The reset link has no token. Please request a new link."}</p>}
             {(isLogin || isRegister || isResetConfirm || isBootstrap) && <label>{isResetConfirm ? (hi ? "नया पासवर्ड" : "New password") : (hi ? "पासवर्ड" : "Password")}<input type="password" autoComplete={isLogin ? "current-password" : "new-password"} required minLength={isBootstrap ? 12 : isRegister || isResetConfirm ? 10 : 1} maxLength={128} value={auth.password} onChange={(event) => setAuth({ ...auth, password: event.target.value })} placeholder={isLogin ? "Enter your password" : isBootstrap ? "12+ characters with upper/lowercase, number, and symbol" : (hi ? "कम से कम 10 अक्षर" : "At least 10 characters")} /></label>}
             {isBootstrap && <label>{hi ? "पासवर्ड की पुष्टि करें" : "Confirm password"}<input type="password" autoComplete="new-password" required minLength={12} maxLength={128} value={auth.password_confirmation} onChange={(event) => setAuth({ ...auth, password_confirmation: event.target.value })} /></label>}
-            <button className="cv-button cv-button-primary cv-full" disabled={busy || (isResetConfirm && !resetToken)}>{busy ? (hi ? "कृपया प्रतीक्षा करें…" : "Please wait…") : isRegister ? (hi ? "खाता बनाएँ" : "Create account") : isBootstrap ? (hi ? "व्यवस्थापक सेटअप करें" : "Set up administrator") : isResetRequest ? (hi ? "रीसेट निर्देश भेजें" : "Send reset instructions") : isResetConfirm ? (hi ? "पासवर्ड बदलें" : "Change password") : (hi ? "साइन इन करें" : "Sign in")} <span aria-hidden="true">→</span></button>
+            <button className="cv-button cv-button-primary cv-full" disabled={busy || (isBootstrap && !bootstrapStatus.setup_available) || (isResetConfirm && !resetToken)}>{busy ? (hi ? "कृपया प्रतीक्षा करें…" : "Please wait…") : isRegister ? (hi ? "खाता बनाएँ" : "Create account") : isBootstrap ? (hi ? "व्यवस्थापक सेटअप करें" : "Set up administrator") : isResetRequest ? (hi ? "रीसेट निर्देश भेजें" : "Send reset instructions") : isResetConfirm ? (hi ? "पासवर्ड बदलें" : "Change password") : (hi ? "साइन इन करें" : "Sign in")} <span aria-hidden="true">→</span></button>
             {isLogin && <p className="cv-auth-switch"><button type="button" onClick={() => { setError(""); setNotice(""); setMode("forgot-password"); }}>{hi ? "पासवर्ड भूल गए?" : "Forgot password?"}</button></p>}
             {(isLogin || isRegister) ? <p className="cv-auth-switch">{isRegister ? (hi ? "पहले से खाता है?" : "Already have an account?") : (hi ? "CareVoice में नए हैं?" : "New to CareVoice?")} <button type="button" onClick={() => { setError(""); setMode(isRegister ? "login" : "register"); }}>{isRegister ? (hi ? "साइन इन" : "Sign in") : (hi ? "खाता बनाएँ" : "Create account")}</button></p> : <p className="cv-auth-switch"><button type="button" onClick={() => { setError(""); setNotice(""); setMode("login"); }}>{hi ? "साइन इन पर वापस जाएँ" : "Back to sign in"}</button></p>}
             <div className="cv-auth-emergency"><strong>{hi ? "आपातकाल?" : "Is this an emergency?"}</strong><span>{hi ? "112 या 108 पर कॉल करें।" : "Call 112 or 108 now."}</span></div>

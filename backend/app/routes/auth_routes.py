@@ -146,13 +146,15 @@ class ResetRequestOut(BaseModel):
 def admin_bootstrap_status(db: Session = Depends(get_db)):
     state = db.get(AdminBootstrapState, 1)
     admin_exists = db.scalar(select(User.id).where(User.role == "platform_admin").limit(1)) is not None
-    available = (
-        state is not None
-        and not state.completed
-        and not admin_exists
-        and len(settings.admin_bootstrap_token) >= 32
-    )
-    return {"setup_available": available}
+    if state is None:
+        reason = "state_unavailable"
+    elif state.completed or admin_exists:
+        reason = "complete"
+    elif len(settings.admin_bootstrap_token) < 32:
+        reason = "token_not_configured"
+    else:
+        reason = "available"
+    return {"setup_available": reason == "available", "reason": reason}
 
 
 @router.post("/bootstrap/platform-admin", response_model=TokenOut, status_code=status.HTTP_201_CREATED)

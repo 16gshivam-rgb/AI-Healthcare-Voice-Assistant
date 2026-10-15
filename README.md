@@ -50,7 +50,7 @@ Email notifications reuse the optional SMTP configuration. SMS is opt-in and use
 
 ## Accounts, roles, and password reset
 
-Public registration creates patient accounts only. For a new installation, set `ADMIN_BOOTSTRAP_TOKEN` in `.env`, start the app, select **Initial administrator setup** on the public page, and enter the token along with the administrator's name, email, and a strong password (12+ characters with uppercase, lowercase, number, and symbol). The bootstrap is database-locked, succeeds once, and is closed after an administrator exists. Subsequent privileged accounts are created in **Administration** by a platform administrator; a hospital administrator can create doctor accounts only for clinician profiles at their assigned hospital.
+Public registration creates patient accounts only. For a new installation, set `ADMIN_BOOTSTRAP_TOKEN` in `.env` to a unique token generated with `openssl rand -hex 32`, start or restart the app, and open **Initial administrator setup** on the public page (or go directly to `/setup/administrator`). Enter the token along with the administrator's name, email, and a strong password (12+ characters with uppercase, lowercase, number, and symbol). If the token is missing or the setup state is unavailable, the page explains the required configuration instead of silently hiding setup. The bootstrap is database-locked, succeeds once, and is closed after an administrator exists. Subsequent privileged accounts are created in **Administration** by a platform administrator; a hospital administrator can create doctor accounts only for clinician profiles at their assigned hospital.
 
 Onboarding from the website:
 
@@ -60,6 +60,16 @@ Onboarding from the website:
 4. A platform administrator verifies the hospital and clinician in the Provider dashboard review queue. Unverified records are not shown in the public directory.
 5. To enable a doctor's login, use **Administration → Create a staff account**, select **Doctor login**, and link the account to the existing clinician profile. A hospital administrator can create doctor logins only within their own hospital.
 6. Patients register from **Create account**; public registration cannot assign staff or administrator roles.
+
+### Seed fictional demo data (local development only)
+
+The optional seed adds three clearly labeled fictional hospitals, ten synthetic clinicians, twenty patient accounts/profiles, scoped hospital-admin and doctor logins, schedules, appointment history, and simulated invoices/payment attempts. It is additive and rerunnable: it does not reset tables, delete records, or change the existing platform-administrator account. If a seeded identity or appointment marker conflicts with an existing record, the transaction fails rather than taking it over. Run it only against a local development/test database; it refuses other `APP_ENV` values.
+
+```sh
+docker compose exec backend python -m app.seed_demo
+```
+
+All seeded patient, doctor, and hospital-admin accounts use the development-only password `CareVoiceDemo2026!`; for example, sign in as `patient01@demo.carevoice.test`, `doctor01@demo.carevoice.test`, or `hospital-admin01@demo.carevoice.test`. The remaining accounts follow the same numbered pattern (`01` onward; three hospital admins, ten doctors, twenty patients). The seed does not create a platform administrator: continue using the platform-admin account already configured for this installation. Change or remove these synthetic accounts before sharing an environment, and never use this password or data in production.
 
 Trusted operators can still provision other staff roles, such as `hospital_staff`, from the CLI after the hospital exists:
 
