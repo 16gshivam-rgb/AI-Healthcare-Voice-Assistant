@@ -42,7 +42,7 @@ The database is persisted in the `postgres_data` Docker volume. Stop the app wit
 
 pgAdmin is bound to localhost at <http://localhost:5050>; configure a unique `PGADMIN_DEFAULT_PASSWORD` before using it. Its settings are stored in the `pgadmin_data` volume. The API can start and serve deterministic emergency triage when Ollama is unavailable; AI chat will report provider failures until the configured model service is available.
 
-`PAYMENT_MODE=demo` enables a clearly labeled local simulation without contacting Razorpay or collecting payment credentials. Patients can choose a simulated success, failure, or cancellation from Billing & Payments; only a pending owner-authorized demo attempt can be completed, and failed/cancelled attempts leave the invoice unpaid. A successful demo updates the local invoice and payment history but is not evidence of a money transfer. Production configuration rejects demo mode.
+`PAYMENT_MODE=demo` enables a clearly labeled local simulation without contacting Razorpay or requesting card or banking details. Patients can choose a simulated success, failure, or cancellation from Billing & Payments; only a pending owner-authorized demo attempt can be completed, and failed/cancelled attempts leave the invoice unpaid. A successful demo updates the local invoice and payment history but is not evidence of a money transfer. Production configuration rejects demo mode.
 
 For provider-processed payments, set `PAYMENT_MODE=live` and configure `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`; webhook processing additionally requires the secret configured in the Razorpay dashboard. Configure the webhook URL as `https://<your-api-host>/api/v1/billing/webhooks/razorpay` and subscribe to `payment.captured` and `payment.failed`. The API verifies checkout signatures and provider payment state server-side, validates webhook signatures against the exact raw request body, and stores processed event IDs for safe retries. Only the public key ID is returned for checkout; the key secret and webhook secret must remain backend-only. Automated tests mock the provider and never perform real charges.
 
@@ -172,7 +172,7 @@ Backend migrations run during container startup. Check the applied revision and 
 
 ## Beginner project guide
 
-For a detailed Hinglish walkthrough of the code structure, React-to-API flow, PostgreSQL, endpoints, local AI, billing, tests, troubleshooting, and future improvements, open [the CareVoice Project Guide](docs/PROJECT_GUIDE.pdf). Its printable source is [PROJECT_GUIDE.html](docs/PROJECT_GUIDE.html).
+For the detailed, source-verified developer guides covering architecture, project structure, React, FastAPI, PostgreSQL, endpoints, workflows, feature extensions, testing, and troubleshooting, start with [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md). The printable older walkthrough is [the CareVoice Project Guide](docs/PROJECT_GUIDE.pdf), with [PROJECT_GUIDE.html](docs/PROJECT_GUIDE.html) as its source.
 
 ## Project structure
 
@@ -245,6 +245,6 @@ cd ../frontend && npm test && npm run build
 
 ## Before production
 
-This project still needs a real deployment/security and clinical-readiness program: managed secrets, HTTPS, a shared rate-limit store, MFA, monitoring, backup/restore tests, formal migrations review, staff administration and least privilege, privacy/legal review, payment reconciliation, clinical safety review, and tests against production-like infrastructure. Appointment scheduling and medical-record exchange also require real clinic integrations. Do not expose the development Compose stack or its database port to the public internet. See [docs/deployment.md](docs/deployment.md) for validation, backup, and deployment boundaries.
+This project still needs a real deployment/security and clinical-readiness program: managed secrets, HTTPS, a shared rate-limit store, MFA, monitoring, backup/restore tests, formal migrations review, staff administration and least privilege, privacy/legal review, payment reconciliation, clinical safety review, and tests against production-like infrastructure. Appointment booking is implemented in this project; integration with a real clinic's scheduling system and medical-record exchange remain additional work. Do not expose the development Compose stack or its database port to the public internet. See [docs/deployment.md](docs/deployment.md) for validation, backup, and deployment boundaries.
 # AI-Healthcare-Voice-Assistant
 # AI-Healthcare-Voice-Assistant

@@ -53,6 +53,7 @@ export default function App() {
   const [language, setLanguage] = useState(() => storageGet("carevoice_language", "en"));
   const [page, setPage] = useState("Overview");
   const [patients, setPatients] = useState([]);
+  const [recentAppointment, setRecentAppointment] = useState(null);
   const [profile, setProfile] = useState(emptyProfile);
   const [accountLoading, setAccountLoading] = useState(Boolean(!isPasswordResetPath && storageGet("ahva_token")));
   const [busy, setBusy] = useState(false);
@@ -112,6 +113,7 @@ export default function App() {
     }
     setUser(null);
     setPatients([]);
+    setRecentAppointment(null);
   }, [isPasswordResetPath]);
 
   useEffect(() => {
@@ -382,8 +384,8 @@ export default function App() {
                 : <ProviderDashboardPage user={user} token={token} onUserUpdated={updateCurrentUser} language={language} />)}
               {page === "Provider dashboard" && <ProviderDashboardPage user={user} token={token} onUserUpdated={updateCurrentUser} language={language} />}
               {page === "Administration" && isAdmin && <AdminManagement token={token} user={user} onUserUpdated={updateCurrentUser} language={language} />}
-              {page === "Find care" && <CareDirectoryPage token={token} onNavigate={setPage} language={language} canBook={user?.role === "patient"} />}
-              {page === "Appointments" && <AppointmentsPage token={token} language={language} user={user} />}
+              {page === "Find care" && <CareDirectoryPage token={token} onNavigate={setPage} onAppointmentBooked={(appointment) => { setRecentAppointment(appointment); setPage("Appointments"); }} language={language} canBook={user?.role === "patient"} />}
+              {page === "Appointments" && <AppointmentsPage token={token} language={language} user={user} recentAppointment={recentAppointment} />}
               {page === "Symptom check" && <TriagePage language={language} token={token} />}
               {page === "Assistant" && <><ScreenTitle title={isHindi ? "CareVoice सहायक" : "CareVoice assistant"} description={isHindi ? "सामान्य स्वास्थ्य जानकारी के लिए लिखें या बोलें।" : "Type or speak for general health information. This is not a diagnosis or a substitute for care."} /><VoiceAssistant token={token} language={language} /></>}
               {page === "Profile" && user?.role === "patient" && <ProfilePage profile={profile} setProfile={setProfile} patient={patients[0]} busy={busy} onSave={saveProfile} onDelete={deleteProfile} token={token} user={user} onUserUpdated={updateCurrentUser} language={language} />}
